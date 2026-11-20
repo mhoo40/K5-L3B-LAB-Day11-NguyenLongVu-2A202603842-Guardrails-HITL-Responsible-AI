@@ -55,6 +55,13 @@ def detect_injection(user_input: str) -> InputStatus:
         # TODO: Add at least 5 regex patterns
         # Example:
         # r"ignore (all )?(previous|above) instructions",
+        r"(?:ignore|disregard|forget|bypass|override)\s+(?:all\s+|any\s+|the\s+|my\s+|your\s+)?(?:previous|prior|above|earlier|initial)\s+(?:instructions?|rules?|guidelines?|prompts?)",
+        r"you\s+are\s+now\s+(in\s+)?(developer\s+mod)?",
+        r"(all\s+)?(previous|prior)\s+instructions?\s+(are|is)\s+(void|invalid|null|obsolete|cancelled|revoked)",
+        r"[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\u00ad\u034f\u061c\u180e]",
+        r"pretend\s+(?:to\s+be|you\s+are)",
+        r"https?://(?!(?:api|secure)\.vinbank\.com)\S+",
+        r"(?:reveal|show|print|output|repeat)\s+(?:me\s+)?(?:your|the|my|hidden|internal|system|original|exact)\s+(?:system\s+)?(?:prompt|instructions?)"
     ]
 
     for pattern in INJECTION_PATTERNS:
@@ -90,8 +97,88 @@ def topic_filter(user_input: str) -> InputStatus:
     # 1. If input contains any blocked topic -> return "BLOCK"
     # 2. If input doesn't contain any allowed topic -> return "BLOCK"
     # 3. Otherwise -> return "ALLOW"
+    
+    GREETING_PATTERN = re.compile(
+        r"^\s*(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|thanks?|thank\s+you|ok|okay|yes|no|"
+        r"xin\s+chào|chào(?:\s+bạn|\s+ad|\s+shop)?|cảm\s+ơn|vâng|dạ|ok|được)\s*[!?.]*\s*$",
+        re.IGNORECASE,
+    )
+    
+    BANKING_KEYWORDS = [
+        r"\bvinbank\b",
+        r"\bbank(?:ing|s)?\b",
+        r"ngân\s+hàng",
+        r"\batm\b",
+        r"\bbranch(?:es)?\b",
+        r"chi\s+nhánh",
+        r"phòng\s+giao\s+dịch",
+        r"\bkyc\b",
+        r"\bekyc\b",
+        r"\botp\b",
 
-    pass  # Replace with your implementation
+        r"\baccounts?\b",
+        r"tài\s+khoản",
+        r"số\s+dư",
+        r"\bbalance\b",
+        r"mở\s+thẻ",
+        r"mở\s+tài\s+khoản",
+
+        r"\btransactions?\b",
+        r"\btransfers?\b",
+        r"\bpayments?\b",
+        r"\bdeposits?\b",
+        r"\bwithdraw(?:al|s)?\b",
+        r"\bremittance\b",
+        r"giao\s+dịch",
+        r"chuyển\s+khoản",
+        r"chuyển\s+tiền",
+        r"nạp\s+tiền",
+        r"rút\s+tiền",
+        r"thanh\s+toán",
+        r"sao\s+kê",
+        r"\bstatement\b",
+
+        r"\bloans?\b",
+        r"\bmortgages?\b",
+        r"\bborrow(?:ing)?\b",
+        r"\binstallments?\b",
+        r"vay",
+        r"khoản\s+vay",
+        r"thế\s+chấp",
+        r"tín\s+chấp",
+        r"trả\s+góp",
+        r"dư\s+nợ",
+        
+        r"\binterest(?:\s+rates?)?\b",
+        r"\bapr\b",
+        r"\bapy\b",
+        r"lãi\s+suất",
+        r"tiền\s+lãi",
+
+        r"\bsavings?\b",
+        r"\bterm\s+deposits?\b",
+        r"tiết\s+kiệm",
+        r"gửi\s+tiết\s+kiệm",
+        r"kỳ\s+hạn",
+
+        r"\b(?:credit|debit|atm)\s+cards?\b",
+        r"\bcards?\b",
+        r"\bcvv\b",
+        r"\bcredit\s+limits?\b",
+        r"thẻ\s+tín\s+dụng",
+        r"thẻ\s+ghi\s+nợ",
+        r"hạn\s+mức",
+    ]
+
+    TOPIC_PATTERN = re.compile("|".join(BANKING_KEYWORDS), re.IGNORECASE)
+
+    if GREETING_PATTERN.match(input_lower):
+        return "ALLOW"
+
+    if TOPIC_PATTERN.search(input_lower):
+        return "ALLOW"
+
+    return "BLOCK"
 
 
 # ============================================================
@@ -150,8 +237,18 @@ class InputGuardrailPlugin(base_plugin.BasePlugin):
         # 2. Call topic_filter(text)
         #    - If "BLOCK": increment blocked_count, return self._block_response("...")
         # 3. If both return "ALLOW": return None (let message through)
+        injection_result = detect_injection(text)
+        topic_result = topic_filter(text)
 
-        pass  # Replace with your implementation
+        if injection_result == "BLOCK":
+            self.blocked_count += 1
+            return self._block_response("Your message contains potentially harmful content.")
+
+        if topic_result == "BLOCK":
+            self.blocked_count += 1
+            return self._block_response("Your message is not related to banking services.")
+
+        return None
 
 
 # ============================================================
